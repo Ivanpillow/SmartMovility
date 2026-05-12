@@ -37,16 +37,6 @@ SmartMovility es una web app mobile-first para encontrar estacionamiento disponi
 - OpenAI API (chatbot)
 - Leaflet + OpenStreetMap
 
-## Variables de entorno
-
-Crea un archivo `.env.local` con:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-```
 
 ## Desarrollo local
 
