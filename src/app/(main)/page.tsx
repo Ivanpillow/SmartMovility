@@ -34,26 +34,31 @@ export default function HomePage() {
   return (
     <div className="min-h-dvh bg-background page-enter">
       <div className="w-full mx-auto min-h-dvh flex flex-col">
-        <div className="bg-[#1153a6] text-white px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 rounded-b-3xl">
-          <div className="flex items-center justify-between mb-3">
 
-            {/* Logo + texto agrupados */}
+        {/* ── Header ── */}
+        <div className="bg-[#1153a6] text-white px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 rounded-b-3xl">
+          <div className="flex items-center justify-between">
+
+            {/* Logo badge + texto */}
             <div className="flex items-center gap-3">
-              <img
-                src="/LogoSmartMovility.png"
-                alt="Logo SmartMovility"
-                width={42}
-                height={42}
-                className="shrink-0 drop-shadow-md"
-              />
+              {/* Contenedor blanco que hace resaltar el logo sobre el azul */}
+              <div className="bg-white rounded-2xl p-1.5 shadow-lg shadow-black/20 shrink-0">
+                <img
+                  src="/LogoSmartMovility.svg"
+                  alt="Logo SmartMovility"
+                  width={52}
+                  height={52}
+                  className="block"
+                />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold leading-tight">SmartMovility</h1>
+                <h1 className="text-2xl font-bold leading-tight tracking-tight">SmartMovility</h1>
                 <p className="text-blue-100 text-sm leading-tight">Encuentra tu estacionamiento ideal</p>
               </div>
             </div>
 
-            {/* Botones */}
-            <div className="flex items-center gap-2">
+            {/* Acciones */}
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => router.push('/ayuda')}
                 className="p-2 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-colors"
@@ -67,6 +72,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ── Contenido ── */}
         <div className="flex-1 px-6 py-6 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
