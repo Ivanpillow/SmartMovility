@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/(main)/mapa/page": [
+    "/(main)/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(main)/mapa/page.js"
+      "static/chunks/app/(main)/page.js"
     ],
     "/(main)/layout": [
       "static/chunks/webpack.js",
@@ -16,35 +16,20 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(main)/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(main)/page.js"
-    ],
-    "/(main)/detalle/[id]/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(main)/detalle/[id]/page.js"
-    ],
     "/(main)/opciones/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(main)/opciones/page.js"
     ],
-    "/(main)/ayuda/page": [
+    "/(main)/mapa/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(main)/ayuda/page.js"
+      "static/chunks/app/(main)/mapa/page.js"
     ],
-    "/(main)/recomendaciones/page": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(main)/recomendaciones/page.js"
-    ],
-    "/(main)/chatbot/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(main)/chatbot/page.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }

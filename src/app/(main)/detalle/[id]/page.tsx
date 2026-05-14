@@ -2,16 +2,37 @@
 
 import { ArrowLeft, MapPin, Users, CheckCircle2, Navigation } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { StatusBadge } from '@/components/parking/StatusBadge';
 import { getStatusColor } from '@/types/parking';
+import {
+  applyDistanceFromLocation,
+  DEFAULT_USER_LOCATION,
+  estimateWalkingMinutes,
+  loadUserLocation,
+  rankParkings,
+  type UserCoordinates,
+} from '@/lib/parkingRouting';
 
 export default function DetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const parking = parkingLots.find((item) => item.id === id);
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+
+  useEffect(() => {
+    const location = loadUserLocation();
+    if (location) setUserLocation(location);
+  }, []);
+
+  const parkings = useMemo(() => {
+    const location = userLocation ?? DEFAULT_USER_LOCATION;
+    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+  }, [userLocation]);
+
+  const parking = parkings.find((item) => item.id === id);
 
   if (!parking) {
     return (
@@ -109,7 +130,9 @@ export default function DetailPage() {
               </div>
               <div>
                 <p className="font-medium">{parking.distance}m de distancia</p>
-                <p className="text-sm text-muted-foreground">Aproximadamente 2 min caminando</p>
+                <p className="text-sm text-muted-foreground">
+                  Aproximadamente {estimateWalkingMinutes(parking.distance)} min caminando
+                </p>
               </div>
             </div>
           </motion.div>

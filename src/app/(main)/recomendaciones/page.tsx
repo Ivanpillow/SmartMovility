@@ -2,18 +2,31 @@
 
 import { ArrowLeft, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { getStatusColor } from '@/types/parking';
+import {
+  applyDistanceFromLocation,
+  DEFAULT_USER_LOCATION,
+  loadUserLocation,
+  rankParkings,
+  type UserCoordinates,
+} from '@/lib/parkingRouting';
 
 export default function RecommendationsPage() {
   const router = useRouter();
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
 
-  const sortedParkings = [...parkingLots].sort((a, b) => {
-    if (a.status === 'available' && b.status !== 'available') return -1;
-    if (a.status !== 'available' && b.status === 'available') return 1;
-    return a.distance - b.distance;
-  });
+  useEffect(() => {
+    const location = loadUserLocation();
+    if (location) setUserLocation(location);
+  }, []);
+
+  const sortedParkings = useMemo(() => {
+    const location = userLocation ?? DEFAULT_USER_LOCATION;
+    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+  }, [userLocation]);
 
   const bestParking = sortedParkings[0];
   const alternatives = sortedParkings.slice(1);
@@ -30,7 +43,7 @@ export default function RecommendationsPage() {
             <span>Volver</span>
           </button>
           <h1 className="text-2xl font-bold">Mejores opciones disponibles</h1>
-          <p className="text-blue-100 text-sm mt-1">Ordenadas por cercanía y disponibilidad</p>
+          <p className="text-blue-100 text-sm mt-1">Ordenadas por distancia y disponibilidad</p>
         </div>
 
         <div className="flex-1 px-6 py-6 overflow-y-auto">

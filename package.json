@@ -1,8 +1,11 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "Smartmovility",
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -1,10 +1,6 @@
 {
-  "/api/chatbot/route": "app/api/chatbot/route.js",
-  "/(main)/mapa/page": "app/(main)/mapa/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/(main)/page": "app/(main)/page.js",
-  "/(main)/detalle/[id]/page": "app/(main)/detalle/[id]/page.js",
-  "/(main)/ayuda/page": "app/(main)/ayuda/page.js",
-  "/(main)/opciones/page": "app/(main)/opciones/page.js",
-  "/(main)/recomendaciones/page": "app/(main)/recomendaciones/page.js",
-  "/(main)/chatbot/page": "app/(main)/chatbot/page.js"
+  "/(main)/mapa/page": "app/(main)/mapa/page.js",
+  "/(main)/opciones/page": "app/(main)/opciones/page.js"
 }

@@ -1,4 +1,4 @@
-// File: C:\Users\ab_st\OneDrive\Documentos\CUCEI\Semestre VIII\Sistemas B en Conocimiento\ProyFinal\SmartMovility\src\app\layout.tsx
+// File: C:\Users\ab_st\OneDrive\Documentos\CUCEI\Semestre VIII\Sistemas B en Conocimiento\Final\SmartMovility\src\app\layout.tsx
 import * as entry from '../../../src/app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

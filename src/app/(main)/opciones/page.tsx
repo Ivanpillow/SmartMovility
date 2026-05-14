@@ -2,13 +2,33 @@
 
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { ParkingCard } from '@/components/parking/ParkingCard';
 import { parkingLots } from '@/data/parkingData';
+import {
+  applyDistanceFromLocation,
+  DEFAULT_USER_LOCATION,
+  loadUserLocation,
+  rankParkings,
+  type UserCoordinates,
+} from '@/lib/parkingRouting';
 
 export default function OptionsPage() {
   const router = useRouter();
-  const mainParkings = parkingLots.slice(0, 3);
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+
+  useEffect(() => {
+    const location = loadUserLocation();
+    if (location) setUserLocation(location);
+  }, []);
+
+  const sortedParkings = useMemo(() => {
+    const location = userLocation ?? DEFAULT_USER_LOCATION;
+    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+  }, [userLocation]);
+
+  const mainParkings = sortedParkings.slice(0, 3);
 
   return (
     <div className="min-h-dvh bg-background page-enter">
@@ -46,7 +66,7 @@ export default function OptionsPage() {
             >
               <h3 className="font-semibold text-base mb-2">Estacionamiento en Calle</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                Calles cercanas con disponibilidad estimada
+                 Ordenado por distancia caminando y porcentaje de disponibilidad
               </p>
 
               <div className="flex items-center justify-between mb-4">
@@ -54,7 +74,7 @@ export default function OptionsPage() {
                   <div className="w-3 h-3 rounded-full bg-green-500" />
                   <span className="text-sm">Alta disponibilidad</span>
                 </div>
-                <span className="text-sm text-muted-foreground">~85m</span>
+                 <span className="text-sm text-muted-foreground">~{mainParkings[2]?.distance ?? 0}m</span>
               </div>
 
               <button
