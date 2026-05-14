@@ -36,10 +36,23 @@ export default function HomePage() {
       <div className="w-full mx-auto min-h-dvh flex flex-col">
         <div className="bg-[#1153a6] text-white px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-6 rounded-b-3xl">
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-2xl font-bold mb-1">SmartMovility</h1>
-              <p className="text-blue-100 text-sm">Encuentra tu estacionamiento ideal</p>
+
+            {/* Logo + texto agrupados */}
+            <div className="flex items-center gap-3">
+              <img
+                src="/LogoSmartMovility.png"
+                alt="Logo SmartMovility"
+                width={42}
+                height={42}
+                className="shrink-0 drop-shadow-md"
+              />
+              <div>
+                <h1 className="text-2xl font-bold leading-tight">SmartMovility</h1>
+                <p className="text-blue-100 text-sm leading-tight">Encuentra tu estacionamiento ideal</p>
+              </div>
             </div>
+
+            {/* Botones */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => router.push('/ayuda')}
@@ -50,6 +63,7 @@ export default function HomePage() {
               </button>
               <ThemeToggle />
             </div>
+
           </div>
         </div>
 
