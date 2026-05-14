@@ -1,25 +1,50 @@
 "use client";
 
-import { ArrowLeft, RefreshCw, Navigation2, Layers } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Navigation2, Layers, LocateFixed } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { getStatusColor } from '@/types/parking';
 import { LeafletMapView } from '@/components/maps/LeafletMapView';
+import {
+  applyDistanceFromLocation,
+  DEFAULT_USER_LOCATION,
+  estimateWalkingMinutes,
+  loadUserLocation,
+  rankParkings,
+  saveUserLocation,
+  type UserCoordinates,
+} from '@/lib/parkingRouting';
 
 export default function MapPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedId = searchParams.get('parking');
-  const selectedParking = useMemo(
-    () => parkingLots.find((p) => p.id === selectedId),
-    [selectedId]
-  );
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [recenterToken, setRecenterToken] = useState(0);
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+  const [isPlacingUserPin, setIsPlacingUserPin] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  useEffect(() => {
+    const location = loadUserLocation();
+    if (location) {
+      setUserLocation(location);
+    }
+  }, []);
+
+  const effectiveLocation = userLocation ?? DEFAULT_USER_LOCATION;
+  const rankedParkings = useMemo(
+    () => rankParkings(applyDistanceFromLocation(parkingLots, effectiveLocation)),
+    [effectiveLocation]
+  );
+  const selectedParking = useMemo(
+    () => rankedParkings.find((p) => p.id === selectedId),
+    [rankedParkings, selectedId]
+  );
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -31,7 +56,29 @@ export default function MapPage() {
   };
 
   const handleSelect = (parkingId: string) => {
+    setIsNavigating(false);
     router.replace(`/mapa?parking=${parkingId}`);
+  };
+
+  const handleUserLocationSet = (location: UserCoordinates) => {
+    saveUserLocation(location);
+    setUserLocation(location);
+    setIsPlacingUserPin(false);
+  };
+
+  const handleNavigate = () => {
+    if (!selectedParking) return;
+    if (isNavigating) {
+      setIsNavigating(false);
+      return;
+    }
+
+    if (!userLocation) {
+      setIsPlacingUserPin(true);
+      return;
+    }
+
+    setIsNavigating(true);
   };
 
   return (
@@ -39,10 +86,14 @@ export default function MapPage() {
       <div className="w-full mx-auto min-h-dvh flex flex-col relative">
         <div className="absolute inset-0 z-0">
           <LeafletMapView
-            parkings={parkingLots}
+            parkings={rankedParkings}
             selectedId={selectedId}
             recenterToken={recenterToken}
+            userLocation={userLocation}
+            isPlacingUserPin={isPlacingUserPin}
+            routingTargetId={isNavigating ? selectedParking?.id : null}
             onSelect={handleSelect}
+            onUserLocationSet={handleUserLocationSet}
           />
         </div>
 
@@ -116,6 +167,9 @@ export default function MapPage() {
                   <p className="text-sm text-muted-foreground">
                     {selectedParking.distance}m de distancia
                   </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ~{estimateWalkingMinutes(selectedParking.distance)} min caminando
+                  </p>
                 </div>
                 <div className="text-right">
                   <p
@@ -136,15 +190,42 @@ export default function MapPage() {
                   Ver detalles
                 </button>
                 <button
+                  onClick={handleNavigate}
                   className="flex-1 bg-[#1153a6] text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#0d4080] transition-colors"
                 >
                   <Navigation2 className="w-4 h-4" />
-                  Navegar
+                  {isNavigating
+                    ? 'Ocultar ruta'
+                    : isPlacingUserPin || !userLocation
+                      ? 'Poner ubicación'
+                      : 'Navegar'}
                 </button>
               </div>
+
+              {!userLocation && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Coloca tu pin para calcular ruta caminando y recomendaciones personalizadas.
+                </p>
+              )}
             </div>
           </motion.div>
         )}
+
+        <button
+          onClick={() => {
+            setIsNavigating(false);
+            setIsPlacingUserPin((value) => !value);
+          }}
+          title="Poner mi ubicación"
+          className={`absolute right-6 z-10 border border-white/60 dark:border-border/80 p-3 rounded-full shadow-lg backdrop-blur-md transition-colors ${
+            isPlacingUserPin
+              ? 'bottom-[calc(174px+env(safe-area-inset-bottom))] bg-[#1153a6] text-white'
+              : 'bottom-[calc(174px+env(safe-area-inset-bottom))] bg-white/40 dark:bg-card/45 text-foreground hover:bg-white/65 dark:hover:bg-card/70'
+          }`}
+          aria-label="Poner mi ubicación"
+        >
+          <LocateFixed className="w-4 h-4" />
+        </button>
 
         <button
           onClick={handleRecenter}

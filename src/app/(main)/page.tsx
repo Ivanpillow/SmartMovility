@@ -2,14 +2,34 @@
 
 import { Sparkles, ChevronRight, HelpCircle, MessageCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { ParkingCard } from '@/components/parking/ParkingCard';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
-import { getRecommendedParking } from '@/data/parkingData';
+import { parkingLots } from '@/data/parkingData';
+import {
+  applyDistanceFromLocation,
+  DEFAULT_USER_LOCATION,
+  loadUserLocation,
+  rankParkings,
+  type UserCoordinates,
+} from '@/lib/parkingRouting';
 
 export default function HomePage() {
   const router = useRouter();
-  const recommendedParking = getRecommendedParking();
+  const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
+
+  useEffect(() => {
+    const location = loadUserLocation();
+    if (location) setUserLocation(location);
+  }, []);
+
+  const rankedParkings = useMemo(() => {
+    const location = userLocation ?? DEFAULT_USER_LOCATION;
+    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+  }, [userLocation]);
+
+  const recommendedParking = rankedParkings[0];
 
   return (
     <div className="min-h-dvh bg-background page-enter">
@@ -47,7 +67,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-sm text-muted-foreground mb-4">
-              Seleccionado por cercanía y menor ocupación
+              Seleccionado por distancia y disponibilidad desde {userLocation ? 'tu ubicación' : 'el punto base'}
             </p>
 
             <ParkingCard parking={recommendedParking} isRecommended={true} />

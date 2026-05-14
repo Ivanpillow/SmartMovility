@@ -1,4 +1,5 @@
 import { ParkingLot } from '@/types/parking';
+import { applyDistanceFromLocation, DEFAULT_USER_LOCATION, rankParkings } from '@/lib/parkingRouting';
 
 export const parkingLots: ParkingLot[] = [
   {
@@ -75,15 +76,7 @@ export const parkingLots: ParkingLot[] = [
 ];
 
 export const getRecommendedParking = (): ParkingLot => {
-  // Ordenar por disponibilidad y cercanía
-  const sorted = [...parkingLots].sort((a, b) => {
-    // Priorizar disponibles
-    if (a.status === 'available' && b.status !== 'available') return -1;
-    if (a.status !== 'available' && b.status === 'available') return 1;
-    
-    // Si ambos son disponibles, ordenar por distancia
-    return a.distance - b.distance;
-  });
-  
+  const withDistance = applyDistanceFromLocation(parkingLots, DEFAULT_USER_LOCATION);
+  const sorted = rankParkings(withDistance);
   return sorted[0];
 };

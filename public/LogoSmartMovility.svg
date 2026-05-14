@@ -1,0 +1,10 @@
+<svg width="460" height="120" viewBox="0 0 460 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="6" width="108" height="108" rx="28" fill="#1153A6"/>
+  <path d="M60 26C43.432 26 30 39.432 30 56V86C30 89.314 32.686 92 36 92H84C87.314 92 90 89.314 90 86V56C90 39.432 76.568 26 60 26Z" fill="white"/>
+  <rect x="40" y="46" width="40" height="18" rx="6" fill="#1153A6"/>
+  <rect x="52" y="71" width="16" height="14" rx="4" fill="#1153A6"/>
+  <circle cx="50" cy="60" r="4" fill="white"/>
+  <circle cx="70" cy="60" r="4" fill="white"/>
+  <text x="136" y="52" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="800" fill="#1153A6">Smart</text>
+  <text x="136" y="92" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="700" fill="#1D4E89">Movility</text>
+</svg>
