@@ -3,10 +3,10 @@
 import { ArrowLeft, RefreshCw, Navigation2, Layers, LocateFixed } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { getStatusColor } from '@/types/parking';
-import { LeafletMapView } from '@/components/maps/LeafletMapView';
 import {
   applyDistanceFromLocation,
   DEFAULT_USER_LOCATION,
@@ -16,6 +16,20 @@ import {
   saveUserLocation,
   type UserCoordinates,
 } from '@/lib/parkingRouting';
+
+// Dynamic import con ssr:false para evitar que Leaflet acceda a `window`
+// durante el pre-render del servidor (ReferenceError: window is not defined)
+const LeafletMapView = dynamic(
+  () => import('@/components/maps/LeafletMapView').then((mod) => mod.LeafletMapView),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-[#1153a6] border-t-transparent rounded-full animate-spin" />
+      </div>
+    ),
+  }
+);
 
 export default function MapPage() {
   const router = useRouter();
