@@ -2,18 +2,27 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
+import type { EntranceQCEI } from '@/types/entradas';
+import { getStatusColor as getEntranceStatusColor, getStatusText } from '@/types/entradas';
 import type { ParkingLot } from '@/types/parking';
 import type { UserCoordinates } from '@/lib/parkingRouting';
 import { DEFAULT_USER_LOCATION } from '@/lib/parkingRouting';
 
+export type MapRoutingTarget =
+  | { kind: 'parking'; id: string }
+  | { kind: 'entrance'; id: string };
+
 type LeafletMapViewProps = {
   parkings: ParkingLot[];
-  selectedId?: string | null;
+  entrances?: EntranceQCEI[];
+  selectedParkingId?: string | null;
+  selectedEntranceId?: string | null;
   recenterToken?: number;
   userLocation?: UserCoordinates | null;
   isPlacingUserPin?: boolean;
-  routingTargetId?: string | null;
-  onSelect?: (parkingId: string) => void;
+  routingTarget?: MapRoutingTarget | null;
+  onSelectParking?: (parkingId: string) => void;
+  onSelectEntrance?: (entranceId: string) => void;
   onUserLocationSet?: (location: UserCoordinates) => void;
 };
 
@@ -25,7 +34,7 @@ const statusColors: Record<ParkingLot['status'], string> = {
   saturated: '#ef4444',
 };
 
-function createMarkerIcon(status: ParkingLot['status'], selected: boolean) {
+function createParkingMarkerIcon(status: ParkingLot['status'], selected: boolean) {
   const color = statusColors[status];
   const size = selected ? 44 : 36;
 
@@ -55,6 +64,46 @@ function createMarkerIcon(status: ParkingLot['status'], selected: boolean) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
+  });
+}
+
+function createEntranceMarkerIcon(status: EntranceQCEI['status'], selected: boolean) {
+  const color = getEntranceStatusColor(status);
+  const width = selected ? 40 : 34;
+  const height = selected ? 48 : 42;
+
+  return L.divIcon({
+    className: '',
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-4px);">
+        <div style="
+          width:${width}px;
+          height:${width}px;
+          border-radius:10px;
+          background:${color};
+          border:3px solid rgba(255,255,255,0.95);
+          box-shadow:0 10px 24px rgba(16,89,185,0.35), 0 0 0 5px ${color}33;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          color:white;
+          font-weight:700;
+          font-size:${selected ? 15 : 13}px;
+          font-family:Inter,sans-serif;
+        ">E</div>
+        <div style="
+          width:0;
+          height:0;
+          border-left:7px solid transparent;
+          border-right:7px solid transparent;
+          border-top:9px solid ${color};
+          margin-top:-2px;
+        "></div>
+      </div>
+    `,
+    iconSize: [width, height],
+    iconAnchor: [width / 2, height],
+    popupAnchor: [0, -height],
   });
 }
 
@@ -90,26 +139,67 @@ function parkingPopupHtml(parking: ParkingLot): string {
   `;
 }
 
+function entrancePopupHtml(entrance: EntranceQCEI): string {
+  const color = getEntranceStatusColor(entrance.status);
+  const distanceLabel =
+    typeof entrance.distance === 'number' ? `${entrance.distance}m de distancia` : 'Entrada al campus';
+
+  return `
+    <div style="font-family: Inter, sans-serif; min-width: 180px;">
+      <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">${entrance.name}</div>
+      <div style="font-size: 12px; color: ${color}; margin-bottom: 4px;">${getStatusText(entrance.status)}</div>
+      <div style="font-size: 12px; margin-bottom: 8px;">${distanceLabel}</div>
+    </div>
+  `;
+}
+
+function resolveRoutingDestination(
+  routingTarget: MapRoutingTarget | null | undefined,
+  parkings: ParkingLot[],
+  entrances: EntranceQCEI[]
+): UserCoordinates | null {
+  if (!routingTarget) return null;
+
+  if (routingTarget.kind === 'parking') {
+    const parking = parkings.find((item) => item.id === routingTarget.id);
+    return parking?.coordinates ?? null;
+  }
+
+  const entrance = entrances.find((item) => item.id === routingTarget.id);
+  return entrance?.coordinates ?? null;
+}
+
 export function LeafletMapView({
   parkings,
-  selectedId,
+  entrances = [],
+  selectedParkingId,
+  selectedEntranceId,
   recenterToken = 0,
   userLocation = null,
   isPlacingUserPin = false,
-  routingTargetId = null,
-  onSelect,
+  routingTarget = null,
+  onSelectParking,
+  onSelectEntrance,
   onUserLocationSet,
 }: LeafletMapViewProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const parkingMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const entranceMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const userMarkerRef = useRef<L.Marker | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
 
   const selectedParking = useMemo(
-    () => parkings.find((parking) => parking.id === selectedId),
-    [parkings, selectedId]
+    () => parkings.find((parking) => parking.id === selectedParkingId),
+    [parkings, selectedParkingId]
   );
+
+  const selectedEntrance = useMemo(
+    () => entrances.find((entrance) => entrance.id === selectedEntranceId),
+    [entrances, selectedEntranceId]
+  );
+
+  const flyTarget = selectedParking ?? selectedEntrance;
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -130,20 +220,6 @@ export function LeafletMapView({
       updateWhenIdle: true,
     }).addTo(map);
 
-    parkings.forEach((parking) => {
-      const marker = L.marker([parking.coordinates.lat, parking.coordinates.lng], {
-        icon: createMarkerIcon(parking.status, parking.id === selectedId),
-      })
-        .addTo(map)
-        .bindPopup(parkingPopupHtml(parking), { maxWidth: 220 });
-
-      marker.on('click', () => {
-        onSelect?.(parking.id);
-      });
-
-      markersRef.current.set(parking.id, marker);
-    });
-
     mapRef.current = map;
 
     const timer = window.setTimeout(() => {
@@ -152,8 +228,10 @@ export function LeafletMapView({
 
     return () => {
       window.clearTimeout(timer);
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current.clear();
+      parkingMarkersRef.current.forEach((marker) => marker.remove());
+      parkingMarkersRef.current.clear();
+      entranceMarkersRef.current.forEach((marker) => marker.remove());
+      entranceMarkersRef.current.clear();
       routeLineRef.current?.remove();
       routeLineRef.current = null;
       userMarkerRef.current?.remove();
@@ -161,25 +239,90 @@ export function LeafletMapView({
       map.remove();
       mapRef.current = null;
     };
-  }, [parkings, onSelect]);
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current) return;
 
-    markersRef.current.forEach((marker, parkingId) => {
-      const parking = parkings.find((item) => item.id === parkingId);
-      if (!parking) return;
+    const map = mapRef.current;
+    const currentIds = new Set(parkings.map((parking) => parking.id));
 
-      marker.setIcon(createMarkerIcon(parking.status, parkingId === selectedId));
-      marker.setPopupContent(parkingPopupHtml(parking));
+    parkingMarkersRef.current.forEach((marker, parkingId) => {
+      if (!currentIds.has(parkingId)) {
+        marker.remove();
+        parkingMarkersRef.current.delete(parkingId);
+      }
     });
-  }, [parkings, selectedId]);
+
+    parkings.forEach((parking) => {
+      const existing = parkingMarkersRef.current.get(parking.id);
+      const isSelected = parking.id === selectedParkingId;
+
+      if (existing) {
+        existing.setIcon(createParkingMarkerIcon(parking.status, isSelected));
+        existing.setPopupContent(parkingPopupHtml(parking));
+        existing.setLatLng([parking.coordinates.lat, parking.coordinates.lng]);
+        return;
+      }
+
+      const marker = L.marker([parking.coordinates.lat, parking.coordinates.lng], {
+        icon: createParkingMarkerIcon(parking.status, isSelected),
+      })
+        .addTo(map)
+        .bindPopup(parkingPopupHtml(parking), { maxWidth: 220 });
+
+      marker.on('click', () => {
+        onSelectParking?.(parking.id);
+      });
+
+      parkingMarkersRef.current.set(parking.id, marker);
+    });
+  }, [parkings, selectedParkingId, onSelectParking]);
 
   useEffect(() => {
     if (!mapRef.current) return;
 
-    if (selectedParking) {
-      mapRef.current.flyTo([selectedParking.coordinates.lat, selectedParking.coordinates.lng], 17, {
+    const map = mapRef.current;
+    const currentIds = new Set(entrances.map((entrance) => entrance.id));
+
+    entranceMarkersRef.current.forEach((marker, entranceId) => {
+      if (!currentIds.has(entranceId)) {
+        marker.remove();
+        entranceMarkersRef.current.delete(entranceId);
+      }
+    });
+
+    entrances.forEach((entrance) => {
+      const existing = entranceMarkersRef.current.get(entrance.id);
+      const isSelected = entrance.id === selectedEntranceId;
+
+      if (existing) {
+        existing.setIcon(createEntranceMarkerIcon(entrance.status, isSelected));
+        existing.setPopupContent(entrancePopupHtml(entrance));
+        existing.setLatLng([entrance.coordinates.lat, entrance.coordinates.lng]);
+        return;
+      }
+
+      const marker = L.marker([entrance.coordinates.lat, entrance.coordinates.lng], {
+        icon: createEntranceMarkerIcon(entrance.status, isSelected),
+        zIndexOffset: 500,
+      })
+        .addTo(map)
+        .bindPopup(entrancePopupHtml(entrance), { maxWidth: 220 });
+
+      marker.on('click', () => {
+        onSelectEntrance?.(entrance.id);
+      });
+
+      entranceMarkersRef.current.set(entrance.id, marker);
+    });
+  }, [entrances, selectedEntranceId, onSelectEntrance]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    if (flyTarget) {
+      mapRef.current.flyTo([flyTarget.coordinates.lat, flyTarget.coordinates.lng], 17, {
         animate: true,
         duration: 0.7,
       });
@@ -189,7 +332,7 @@ export function LeafletMapView({
         duration: 0.7,
       });
     }
-  }, [selectedParking]);
+  }, [flyTarget]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -203,6 +346,7 @@ export function LeafletMapView({
     if (!userMarkerRef.current) {
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], {
         icon: createUserLocationIcon(),
+        zIndexOffset: 1000,
       })
         .addTo(mapRef.current)
         .bindPopup('<div style="font-size:12px; font-weight:600;">Tu ubicación</div>');
@@ -238,17 +382,18 @@ export function LeafletMapView({
     routeLineRef.current?.remove();
     routeLineRef.current = null;
 
-    if (!routingTargetId || !userLocation) return;
-    const destination = parkings.find((parking) => parking.id === routingTargetId);
+    if (!routingTarget || !userLocation) return;
+
+    const destination = resolveRoutingDestination(routingTarget, parkings, entrances);
     if (!destination) return;
 
     routeLineRef.current = L.polyline(
       [
         [userLocation.lat, userLocation.lng],
-        [destination.coordinates.lat, destination.coordinates.lng],
+        [destination.lat, destination.lng],
       ],
       {
-        color: '#1153a6',
+        color: routingTarget.kind === 'entrance' ? '#1059b9' : '#1153a6',
         weight: 5,
         opacity: 0.85,
         lineCap: 'round',
@@ -258,7 +403,7 @@ export function LeafletMapView({
     ).addTo(mapRef.current);
 
     mapRef.current.fitBounds(routeLineRef.current.getBounds(), { padding: [56, 56] });
-  }, [parkings, routingTargetId, userLocation]);
+  }, [parkings, entrances, routingTarget, userLocation]);
 
   useEffect(() => {
     if (!mapRef.current) return;

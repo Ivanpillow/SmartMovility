@@ -1,126 +1,93 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { SendHorizontal } from 'lucide-react';
+import Script from "next/script";
+import { useEffect, useState } from "react";
 
-type ChatMessage = {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-};
+/** ID configurado en Botpress > Webchat > Deploy Settings > Embedded */
+export const BOTPRESS_EMBED_CONTAINER_ID = "bp-embedded-chat-smartMV";
+
+const BOTPRESS_INJECT_SCRIPT =
+  "https://cdn.botpress.cloud/webchat/v3.6/inject.js";
+const BOTPRESS_CONFIG_SCRIPT =
+  "https://files.bpcontent.cloud/2026/05/14/03/20260514032827-280YJ0G3.js";
+      
+function containBotpressLayout(container: HTMLElement) {
+  container.style.position = "relative";
+  container.style.width = "100%";
+  container.style.height = "100%";
+  container.style.overflow = "hidden";
+  container.style.isolation = "isolate";
+
+  const descendants = container.querySelectorAll<HTMLElement>("*");
+  descendants.forEach((element) => {
+    const computed = window.getComputedStyle(element);
+
+    if (computed.position === "fixed") {
+      element.style.position = "absolute";
+    }
+
+    const zIndex = Number.parseInt(computed.zIndex, 10);
+    if (Number.isFinite(zIndex) && zIndex > 50) {
+      element.style.zIndex = "1";
+    }
+
+    if (element.tagName === "IFRAME") {
+      element.style.position = "absolute";
+      element.style.inset = "0";
+      element.style.width = "100%";
+      element.style.height = "100%";
+      element.style.maxHeight = "none";
+      element.style.border = "0";
+      element.style.borderRadius = "0";
+    }
+  });
+}
 
 export function ChatPanel() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Hola, soy el asistente de SmartMovility. Pregunta por disponibilidad o rutas.',
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const [injectReady, setInjectReady] = useState(false);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    if (!injectReady) return;
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    const value = input.trim();
-    if (!value) return;
+    const container = document.getElementById(BOTPRESS_EMBED_CONTAINER_ID);
+    if (!container) return;
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: value,
+    containBotpressLayout(container);
+
+    const observer = new MutationObserver(() => containBotpressLayout(container));
+    observer.observe(container, { childList: true, subtree: true, attributes: true });
+
+    const interval = window.setInterval(() => containBotpressLayout(container), 500);
+    const stopInterval = window.setTimeout(() => window.clearInterval(interval), 8000);
+
+    return () => {
+      observer.disconnect();
+      window.clearInterval(interval);
+      window.clearTimeout(stopInterval);
     };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/chatbot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: value }),
-      });
-
-      const data = await response.json();
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: response.ok ? data.reply : 'No pude responder. Intenta de nuevo.',
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: 'Error al conectar con el chatbot. Intenta mas tarde.',
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [injectReady]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto space-y-3 px-6 py-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                message.role === 'user'
-                  ? 'bg-[#1153a6] text-white'
-                  : 'bg-white dark:bg-card border border-border text-foreground'
-              }`}
-            >
-              {message.content}
-            </div>
-          </div>
-        ))}
+    <div className="smartmovility-chat-shell absolute inset-0 flex flex-col bg-background">
+      <div
+        id={BOTPRESS_EMBED_CONTAINER_ID}
+        className="botpress-embedded-chat relative flex-1 min-h-0 w-full"
+        aria-label="Chat con el asistente SmartMovility"
+      />
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm bg-white dark:bg-card border border-border text-muted-foreground">
-              Pensando...
-            </div>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="px-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-      >
-        <div className="flex items-center gap-2 rounded-2xl border border-border bg-white dark:bg-card px-3 py-2 shadow-sm">
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Escribe tu mensaje"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-            aria-label="Mensaje para el chatbot"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="h-9 w-9 flex items-center justify-center rounded-xl bg-[#1153a6] text-white disabled:opacity-60"
-            aria-label="Enviar mensaje"
-          >
-            <SendHorizontal className="h-4 w-4" />
-          </button>
-        </div>
-      </form>
+      <Script
+        id="botpress-webchat-inject"
+        src={BOTPRESS_INJECT_SCRIPT}
+        strategy="afterInteractive"
+        onLoad={() => setInjectReady(true)}
+      />
+      {injectReady && (
+        <Script
+          id="botpress-webchat-config"
+          src={BOTPRESS_CONFIG_SCRIPT}
+          strategy="afterInteractive"
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { EntranceQCEI } from '@/types/entradas';
 import type { ParkingLot } from '@/types/parking';
 
 export type UserCoordinates = {
@@ -6,8 +7,8 @@ export type UserCoordinates = {
 };
 
 export const DEFAULT_USER_LOCATION: UserCoordinates = {
-  lat: 20.655101702046743,
-  lng: -103.32549526761856,
+  lat: 20.657411,
+  lng: -103.328974, 
 };
 
 const USER_LOCATION_STORAGE_KEY = 'smartmovility:user-location';
@@ -85,6 +86,16 @@ export function applyDistanceFromLocation(
   return parkings.map((parking) => ({
     ...parking,
     distance: calculateDistanceMeters(location, parking.coordinates),
+  }));
+}
+
+export function applyDistanceFromLocationToEntrances(
+  entrances: EntranceQCEI[],
+  location: UserCoordinates
+): EntranceQCEI[] {
+  return entrances.map((entrance) => ({
+    ...entrance,
+    distance: calculateDistanceMeters(location, entrance.coordinates),
   }));
 }
 

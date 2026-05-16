@@ -8,8 +8,8 @@ export default function ChatbotPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-dvh bg-background page-enter flex flex-col">
-      <div className="bg-[#1153a6] text-white px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-4">
+    <div className="smartmovility-chat-page h-dvh bg-background page-enter flex flex-col overflow-hidden">
+      <header className="shrink-0 bg-[#1153a6] text-white px-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-4">
         <button
           onClick={() => router.push('/')}
           className="mb-3 flex items-center gap-2 text-white hover:text-blue-100"
@@ -26,9 +26,11 @@ export default function ChatbotPage() {
             <p className="text-blue-100 text-sm">Asistente rapido para encontrar estacionamiento</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      <ChatPanel />
+      <main className="relative flex-1 min-h-0 overflow-hidden border-t border-[#1153a6]/15 bg-background">
+        <ChatPanel />
+      </main>
     </div>
   );
 }

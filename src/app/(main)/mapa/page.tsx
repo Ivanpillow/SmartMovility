@@ -5,10 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
+import { Entrances } from '@/data/entradasData';
 import { parkingLots } from '@/data/parkingData';
+import { getStatusColor as getEntranceStatusColor, getStatusText } from '@/types/entradas';
 import { getStatusColor } from '@/types/parking';
+import type { MapRoutingTarget } from '@/components/maps/LeafletMapView';
 import {
   applyDistanceFromLocation,
+  applyDistanceFromLocationToEntrances,
   DEFAULT_USER_LOCATION,
   estimateWalkingMinutes,
   loadUserLocation,
@@ -29,11 +33,11 @@ const LeafletMapView = dynamic(
   }
 );
 
-// Componente interno separado para poder usar useSearchParams dentro de <Suspense>
 function MapContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedId = searchParams.get('parking');
+  const selectedParkingId = searchParams.get('parking');
+  const selectedEntranceId = searchParams.get('entrada');
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
@@ -54,10 +58,26 @@ function MapContent() {
     () => rankParkings(applyDistanceFromLocation(parkingLots, effectiveLocation)),
     [effectiveLocation]
   );
-  const selectedParking = useMemo(
-    () => rankedParkings.find((p) => p.id === selectedId),
-    [rankedParkings, selectedId]
+  const entrancesWithDistance = useMemo(
+    () => applyDistanceFromLocationToEntrances(Entrances, effectiveLocation),
+    [effectiveLocation]
   );
+
+  const selectedParking = useMemo(
+    () => rankedParkings.find((p) => p.id === selectedParkingId),
+    [rankedParkings, selectedParkingId]
+  );
+  const selectedEntrance = useMemo(
+    () => entrancesWithDistance.find((e) => e.id === selectedEntranceId),
+    [entrancesWithDistance, selectedEntranceId]
+  );
+
+  const routingTarget: MapRoutingTarget | null = useMemo(() => {
+    if (!isNavigating) return null;
+    if (selectedEntrance) return { kind: 'entrance', id: selectedEntrance.id };
+    if (selectedParking) return { kind: 'parking', id: selectedParking.id };
+    return null;
+  }, [isNavigating, selectedEntrance, selectedParking]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -68,9 +88,14 @@ function MapContent() {
     setRecenterToken((value) => value + 1);
   };
 
-  const handleSelect = (parkingId: string) => {
+  const handleSelectParking = (parkingId: string) => {
     setIsNavigating(false);
     router.replace(`/mapa?parking=${parkingId}`);
+  };
+
+  const handleSelectEntrance = (entranceId: string) => {
+    setIsNavigating(false);
+    router.replace(`/mapa?entrada=${entranceId}`);
   };
 
   const handleUserLocationSet = (location: UserCoordinates) => {
@@ -80,7 +105,8 @@ function MapContent() {
   };
 
   const handleNavigate = () => {
-    if (!selectedParking) return;
+    if (!selectedParking && !selectedEntrance) return;
+
     if (isNavigating) {
       setIsNavigating(false);
       return;
@@ -94,17 +120,25 @@ function MapContent() {
     setIsNavigating(true);
   };
 
+  const hasSelection = Boolean(selectedParking || selectedEntrance);
+  const floatingButtonBottom = hasSelection
+    ? 'bottom-[calc(174px+env(safe-area-inset-bottom))]'
+    : 'bottom-[calc(98px+env(safe-area-inset-bottom))]';
+
   return (
     <div className="w-full mx-auto min-h-dvh flex flex-col relative">
       <div className="absolute inset-0 z-0">
         <LeafletMapView
           parkings={rankedParkings}
-          selectedId={selectedId}
+          entrances={entrancesWithDistance}
+          selectedParkingId={selectedParkingId}
+          selectedEntranceId={selectedEntranceId}
           recenterToken={recenterToken}
           userLocation={userLocation}
           isPlacingUserPin={isPlacingUserPin}
-          routingTargetId={isNavigating ? selectedParking?.id : null}
-          onSelect={handleSelect}
+          routingTarget={routingTarget}
+          onSelectParking={handleSelectParking}
+          onSelectEntrance={handleSelectEntrance}
           onUserLocationSet={handleUserLocationSet}
         />
       </div>
@@ -147,19 +181,23 @@ function MapContent() {
           className="relative z-10 mx-6 mt-4"
         >
           <div className="bg-white/95 dark:bg-card/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-border">
-            <h3 className="font-semibold text-sm mb-3">Disponibilidad</h3>
-            <div className="grid grid-cols-3 gap-3">
+            <h3 className="font-semibold text-sm mb-3">Leyenda del mapa</h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
-                <span className="text-xs">Alta</span>
+                <span className="text-xs">Est. alta</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[#f59e0b]" />
-                <span className="text-xs">Media</span>
+                <span className="text-xs">Est. media</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[#ef4444]" />
-                <span className="text-xs">Saturado</span>
+                <span className="text-xs">Est. saturado</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm bg-[#1059b9]" />
+                <span className="text-xs">Entrada QCEI</span>
               </div>
             </div>
           </div>
@@ -223,16 +261,67 @@ function MapContent() {
         </motion.div>
       )}
 
+      {!selectedParking && selectedEntrance && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative z-10 mt-auto mx-6 mb-[calc(98px+env(safe-area-inset-bottom))]"
+        >
+          <div className="bg-white dark:bg-card rounded-2xl p-4 shadow-lg border border-border">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-[#1059b9] mb-1">
+                  Entrada QCEI
+                </p>
+                <h3 className="font-semibold text-base mb-1">{selectedEntrance.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedEntrance.distance ?? 0}m de distancia
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  ~{estimateWalkingMinutes(selectedEntrance.distance ?? 0)} min caminando
+                </p>
+              </div>
+              <div className="text-right">
+                <p
+                  className="text-sm font-semibold"
+                  style={{ color: getEntranceStatusColor(selectedEntrance.status) }}
+                >
+                  {getStatusText(selectedEntrance.status)}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleNavigate}
+              className="w-full bg-[#1059b9] text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#0d4080] transition-colors"
+            >
+              <Navigation2 className="w-4 h-4" />
+              {isNavigating
+                ? 'Ocultar ruta'
+                : isPlacingUserPin || !userLocation
+                  ? 'Poner ubicación'
+                  : 'Navegar a entrada'}
+            </button>
+
+            {!userLocation && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Toca el mapa o el botón de ubicación para marcar tu punto de partida.
+              </p>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       <button
         onClick={() => {
           setIsNavigating(false);
           setIsPlacingUserPin((value) => !value);
         }}
         title="Poner mi ubicación"
-        className={`absolute right-6 z-10 border border-white/60 dark:border-border/80 p-3 rounded-full shadow-lg backdrop-blur-md transition-colors ${
+        className={`absolute right-6 z-10 border border-white/60 dark:border-border/80 p-3 rounded-full shadow-lg backdrop-blur-md transition-colors ${floatingButtonBottom} ${
           isPlacingUserPin
-            ? 'bottom-[calc(174px+env(safe-area-inset-bottom))] bg-[#1153a6] text-white'
-            : 'bottom-[calc(174px+env(safe-area-inset-bottom))] bg-white/40 dark:bg-card/45 text-foreground hover:bg-white/65 dark:hover:bg-card/70'
+            ? 'bg-[#1153a6] text-white'
+            : 'bg-white/40 dark:bg-card/45 text-foreground hover:bg-white/65 dark:hover:bg-card/70'
         }`}
         aria-label="Poner mi ubicación"
       >
@@ -250,8 +339,6 @@ function MapContent() {
   );
 }
 
-// Página raíz: envuelve el contenido en Suspense para satisfacer el requisito
-// de Next.js cuando useSearchParams() se usa en static generation
 export default function MapPage() {
   return (
     <div className="min-h-dvh bg-background page-enter">
