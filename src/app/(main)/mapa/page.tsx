@@ -12,7 +12,6 @@ import type { EntranceQCEI } from '@/types/entradas';
 import {
   getStatusColor as getEntranceStatusColor,
   getStatusText,
-  type EntranceQCEI,
 } from '@/types/entradas';
 import { getStatusColor } from '@/types/parking';
 import type { MapRoutingTarget } from '@/components/maps/LeafletMapView';
