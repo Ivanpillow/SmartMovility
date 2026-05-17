@@ -7,12 +7,12 @@ import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { StatusBadge } from '@/components/parking/StatusBadge';
 import { getStatusColor } from '@/types/parking';
+import { hasUserLocation, promptLocationRequired } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
-  DEFAULT_USER_LOCATION,
+  calculateDistanceMeters,
   estimateWalkingMinutes,
   loadUserLocation,
-  rankParkings,
   type UserCoordinates,
 } from '@/lib/parkingRouting';
 
@@ -27,12 +27,12 @@ export default function DetailPage() {
     if (location) setUserLocation(location);
   }, []);
 
-  const parkings = useMemo(() => {
-    const location = userLocation ?? DEFAULT_USER_LOCATION;
-    return rankParkings(applyDistanceFromLocation(parkingLots, location));
-  }, [userLocation]);
+  const parking = useMemo(() => parkingLots.find((item) => item.id === id), [id]);
 
-  const parking = parkings.find((item) => item.id === id);
+  const distanceMeters = useMemo(() => {
+    if (!parking || !hasUserLocation(userLocation)) return null;
+    return calculateDistanceMeters(userLocation, parking.coordinates);
+  }, [parking, userLocation]);
 
   if (!parking) {
     return (
@@ -129,9 +129,15 @@ export default function DetailPage() {
                 <MapPin className="w-6 h-6 text-[#1153a6]" />
               </div>
               <div>
-                <p className="font-medium">{parking.distance}m de distancia</p>
+                <p className="font-medium">
+                  {distanceMeters !== null
+                    ? `${distanceMeters}m de distancia`
+                    : 'Marca tu ubicación en el mapa para ver distancia'}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Aproximadamente {estimateWalkingMinutes(parking.distance)} min caminando
+                  {distanceMeters !== null
+                    ? `Aproximadamente ${estimateWalkingMinutes(distanceMeters)} min caminando`
+                    : 'La distancia se calcula desde el punto que elijas'}
                 </p>
               </div>
             </div>
@@ -167,7 +173,13 @@ export default function DetailPage() {
             </button>
 
             <button
-              onClick={() => router.push(`/mapa?parking=${parking.id}`)}
+              onClick={() => {
+                if (!hasUserLocation(userLocation)) {
+                  promptLocationRequired();
+                  return;
+                }
+                router.push(`/mapa?parking=${parking.id}`);
+              }}
               className="flex-1 bg-[#1153a6] text-white py-4 px-6 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#0d4080] transition-colors"
             >
               <Navigation className="w-5 h-5" />

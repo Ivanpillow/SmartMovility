@@ -10,10 +10,10 @@ import { parkingLots } from '@/data/parkingData';
 import { getStatusColor as getEntranceStatusColor, getStatusText } from '@/types/entradas';
 import { getStatusColor } from '@/types/parking';
 import type { MapRoutingTarget } from '@/components/maps/LeafletMapView';
+import { hasUserLocation, promptLocationRequired } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
   applyDistanceFromLocationToEntrances,
-  DEFAULT_USER_LOCATION,
   estimateWalkingMinutes,
   loadUserLocation,
   rankParkings,
@@ -53,19 +53,19 @@ function MapContent() {
     }
   }, []);
 
-  const effectiveLocation = userLocation ?? DEFAULT_USER_LOCATION;
-  const rankedParkings = useMemo(
-    () => rankParkings(applyDistanceFromLocation(parkingLots, effectiveLocation)),
-    [effectiveLocation]
-  );
-  const entrancesWithDistance = useMemo(
-    () => applyDistanceFromLocationToEntrances(Entrances, effectiveLocation),
-    [effectiveLocation]
-  );
+  const displayParkings = useMemo(() => {
+    if (!hasUserLocation(userLocation)) return parkingLots;
+    return rankParkings(applyDistanceFromLocation(parkingLots, userLocation));
+  }, [userLocation]);
+
+  const entrancesWithDistance = useMemo(() => {
+    if (!hasUserLocation(userLocation)) return Entrances;
+    return applyDistanceFromLocationToEntrances(Entrances, userLocation);
+  }, [userLocation]);
 
   const selectedParking = useMemo(
-    () => rankedParkings.find((p) => p.id === selectedParkingId),
-    [rankedParkings, selectedParkingId]
+    () => displayParkings.find((p) => p.id === selectedParkingId),
+    [displayParkings, selectedParkingId]
   );
   const selectedEntrance = useMemo(
     () => entrancesWithDistance.find((e) => e.id === selectedEntranceId),
@@ -73,11 +73,17 @@ function MapContent() {
   );
 
   const routingTarget: MapRoutingTarget | null = useMemo(() => {
-    if (!isNavigating) return null;
+    if (!isNavigating || !hasUserLocation(userLocation)) return null;
     if (selectedEntrance) return { kind: 'entrance', id: selectedEntrance.id };
     if (selectedParking) return { kind: 'parking', id: selectedParking.id };
     return null;
-  }, [isNavigating, selectedEntrance, selectedParking]);
+  }, [isNavigating, selectedEntrance, selectedParking, userLocation]);
+
+  const requireLocation = (): boolean => {
+    if (hasUserLocation(userLocation)) return true;
+    promptLocationRequired();
+    return false;
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -85,6 +91,7 @@ function MapContent() {
   };
 
   const handleRecenter = () => {
+    if (!requireLocation()) return;
     setRecenterToken((value) => value + 1);
   };
 
@@ -112,24 +119,39 @@ function MapContent() {
       return;
     }
 
-    if (!userLocation) {
-      setIsPlacingUserPin(true);
-      return;
-    }
+    if (!requireLocation()) return;
 
     setIsNavigating(true);
   };
 
+  const handleLocateToggle = () => {
+    if (isPlacingUserPin) {
+      setIsPlacingUserPin(false);
+      return;
+    }
+    setIsPlacingUserPin(true);
+    setIsNavigating(false);
+  };
+
   const hasSelection = Boolean(selectedParking || selectedEntrance);
-  const floatingButtonBottom = hasSelection
-    ? 'bottom-[calc(174px+env(safe-area-inset-bottom))]'
-    : 'bottom-[calc(98px+env(safe-area-inset-bottom))]';
+  const recenterBottomClass = 'bottom-[calc(98px+env(safe-area-inset-bottom))]';
+  const locateBottomClass = hasSelection
+    ? 'bottom-[calc(250px+env(safe-area-inset-bottom))]'
+    : 'bottom-[calc(166px+env(safe-area-inset-bottom))]';
+
+  const formatDistance = (distance?: number) =>
+    typeof distance === 'number' ? `${distance}m de distancia` : 'Marca tu ubicación para ver distancia';
+
+  const formatWalkingTime = (distance?: number) =>
+    typeof distance === 'number'
+      ? `~${estimateWalkingMinutes(distance)} min caminando`
+      : 'Tiempo estimado al marcar ubicación';
 
   return (
     <div className="w-full mx-auto min-h-dvh flex flex-col relative">
       <div className="absolute inset-0 z-0">
         <LeafletMapView
-          parkings={rankedParkings}
+          parkings={displayParkings}
           entrances={entrancesWithDistance}
           selectedParkingId={selectedParkingId}
           selectedEntranceId={selectedEntranceId}
@@ -174,6 +196,15 @@ function MapContent() {
         </div>
       </div>
 
+      {!hasUserLocation(userLocation) && (
+        <div className="relative z-10 mx-6 mt-3">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+            Toca el botón de ubicación (arriba del recentrado) y marca tu punto en el mapa para
+            usar distancias y navegación.
+          </p>
+        </div>
+      )}
+
       {showLegend && (
         <motion.div
           initial={{ y: -20, opacity: 0 }}
@@ -214,11 +245,9 @@ function MapContent() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="font-semibold text-base mb-1">{selectedParking.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {selectedParking.distance}m de distancia
-                </p>
+                <p className="text-sm text-muted-foreground">{formatDistance(selectedParking.distance)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  ~{estimateWalkingMinutes(selectedParking.distance)} min caminando
+                  {formatWalkingTime(selectedParking.distance)}
                 </p>
               </div>
               <div className="text-right">
@@ -234,7 +263,10 @@ function MapContent() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => router.push(`/detalle/${selectedParking.id}`)}
+                onClick={() => {
+                  if (!requireLocation()) return;
+                  router.push(`/detalle/${selectedParking.id}`);
+                }}
                 className="flex-1 bg-gray-100 dark:bg-gray-800 text-foreground py-3 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 Ver detalles
@@ -244,19 +276,9 @@ function MapContent() {
                 className="flex-1 bg-[#1153a6] text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#0d4080] transition-colors"
               >
                 <Navigation2 className="w-4 h-4" />
-                {isNavigating
-                  ? 'Ocultar ruta'
-                  : isPlacingUserPin || !userLocation
-                    ? 'Poner ubicación'
-                    : 'Navegar'}
+                {isNavigating ? 'Ocultar ruta' : 'Navegar'}
               </button>
             </div>
-
-            {!userLocation && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Coloca tu pin para calcular ruta caminando y recomendaciones personalizadas.
-              </p>
-            )}
           </div>
         </motion.div>
       )}
@@ -275,10 +297,10 @@ function MapContent() {
                 </p>
                 <h3 className="font-semibold text-base mb-1">{selectedEntrance.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {selectedEntrance.distance ?? 0}m de distancia
+                  {formatDistance(selectedEntrance.distance)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  ~{estimateWalkingMinutes(selectedEntrance.distance ?? 0)} min caminando
+                  {formatWalkingTime(selectedEntrance.distance)}
                 </p>
               </div>
               <div className="text-right">
@@ -296,29 +318,16 @@ function MapContent() {
               className="w-full bg-[#1059b9] text-white py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#0d4080] transition-colors"
             >
               <Navigation2 className="w-4 h-4" />
-              {isNavigating
-                ? 'Ocultar ruta'
-                : isPlacingUserPin || !userLocation
-                  ? 'Poner ubicación'
-                  : 'Navegar a entrada'}
+              {isNavigating ? 'Ocultar ruta' : 'Navegar a entrada'}
             </button>
-
-            {!userLocation && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Toca el mapa o el botón de ubicación para marcar tu punto de partida.
-              </p>
-            )}
           </div>
         </motion.div>
       )}
 
       <button
-        onClick={() => {
-          setIsNavigating(false);
-          setIsPlacingUserPin((value) => !value);
-        }}
+        onClick={handleLocateToggle}
         title="Poner mi ubicación"
-        className={`absolute right-6 z-10 border border-white/60 dark:border-border/80 p-3 rounded-full shadow-lg backdrop-blur-md transition-colors ${floatingButtonBottom} ${
+        className={`absolute right-6 z-20 border border-white/60 dark:border-border/80 p-3 rounded-full shadow-lg backdrop-blur-md transition-colors ${locateBottomClass} ${
           isPlacingUserPin
             ? 'bg-[#1153a6] text-white'
             : 'bg-white/40 dark:bg-card/45 text-foreground hover:bg-white/65 dark:hover:bg-card/70'
@@ -330,8 +339,8 @@ function MapContent() {
 
       <button
         onClick={handleRecenter}
-        className="absolute bottom-[calc(98px+env(safe-area-inset-bottom))] right-6 z-10 bg-white dark:bg-card p-3 rounded-full shadow-lg border border-border hover:shadow-xl transition-shadow"
-        aria-label="Recentrar mapa"
+        className={`absolute right-6 z-10 bg-white dark:bg-card p-3 rounded-full shadow-lg border border-border hover:shadow-xl transition-shadow ${recenterBottomClass}`}
+        aria-label="Recentrar en mi ubicación"
       >
         <div className="w-2 h-2 bg-[#1153a6] rounded-full" />
       </button>

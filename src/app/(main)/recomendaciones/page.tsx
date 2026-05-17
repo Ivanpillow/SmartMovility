@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { parkingLots } from '@/data/parkingData';
 import { getStatusColor } from '@/types/parking';
+import { hasUserLocation } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
-  DEFAULT_USER_LOCATION,
   loadUserLocation,
   rankParkings,
   type UserCoordinates,
@@ -24,8 +24,8 @@ export default function RecommendationsPage() {
   }, []);
 
   const sortedParkings = useMemo(() => {
-    const location = userLocation ?? DEFAULT_USER_LOCATION;
-    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+    if (!hasUserLocation(userLocation)) return [];
+    return rankParkings(applyDistanceFromLocation(parkingLots, userLocation));
   }, [userLocation]);
 
   const bestParking = sortedParkings[0];
@@ -47,6 +47,20 @@ export default function RecommendationsPage() {
         </div>
 
         <div className="flex-1 px-6 py-6 overflow-y-auto">
+          {!hasUserLocation(userLocation) ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center dark:border-amber-800 dark:bg-amber-950">
+              <p className="text-sm text-amber-900 dark:text-amber-100 mb-4">
+                Primero elige tu ubicación en el mapa para ver recomendaciones por distancia.
+              </p>
+              <button
+                onClick={() => router.push('/mapa')}
+                className="w-full bg-[#1153a6] text-white py-3 rounded-xl font-medium hover:bg-[#0d4080] transition-colors"
+              >
+                Ir al mapa
+              </button>
+            </div>
+          ) : (
+          <>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -154,6 +168,8 @@ export default function RecommendationsPage() {
           >
             Ver todo en el mapa
           </button>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { ParkingCard } from '@/components/parking/ParkingCard';
 import { parkingLots } from '@/data/parkingData';
+import { hasUserLocation } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
-  DEFAULT_USER_LOCATION,
   loadUserLocation,
   rankParkings,
   type UserCoordinates,
@@ -24,8 +24,8 @@ export default function OptionsPage() {
   }, []);
 
   const sortedParkings = useMemo(() => {
-    const location = userLocation ?? DEFAULT_USER_LOCATION;
-    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+    if (!hasUserLocation(userLocation)) return [];
+    return rankParkings(applyDistanceFromLocation(parkingLots, userLocation));
   }, [userLocation]);
 
   const mainParkings = sortedParkings.slice(0, 3);
@@ -46,6 +46,20 @@ export default function OptionsPage() {
         </div>
 
         <div className="flex-1 px-6 py-6 overflow-y-auto">
+          {!hasUserLocation(userLocation) ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center dark:border-amber-800 dark:bg-amber-950">
+              <p className="text-sm text-amber-900 dark:text-amber-100 mb-4">
+                Marca tu ubicación en el mapa para ordenar opciones por distancia.
+              </p>
+              <button
+                onClick={() => router.push('/mapa')}
+                className="w-full bg-[#1153a6] text-white py-3 rounded-xl font-medium hover:bg-[#0d4080] transition-colors"
+              >
+                Ir al mapa
+              </button>
+            </div>
+          ) : (
+          <>
           <div className="space-y-4">
             {mainParkings.map((parking, index) => (
               <motion.div
@@ -92,6 +106,8 @@ export default function OptionsPage() {
           >
             Ver todas las opciones
           </button>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ import type { EntranceQCEI } from '@/types/entradas';
 import { getStatusColor as getEntranceStatusColor, getStatusText } from '@/types/entradas';
 import type { ParkingLot } from '@/types/parking';
 import type { UserCoordinates } from '@/lib/parkingRouting';
-import { DEFAULT_USER_LOCATION } from '@/lib/parkingRouting';
+import { fetchWalkingRoute } from '@/lib/streetRouting';
 
 export type MapRoutingTarget =
   | { kind: 'parking'; id: string }
@@ -133,7 +133,9 @@ function parkingPopupHtml(parking: ParkingLot): string {
       <div style="font-size: 12px; color: ${statusColors[parking.status]}; margin-bottom: 4px;">
         ${parking.status === 'available' ? 'Alta disponibilidad' : parking.status === 'medium' ? 'Disponibilidad media' : 'Saturado'}
       </div>
-      <div style="font-size: 12px; margin-bottom: 4px;">${parking.distance}m de distancia</div>
+      <div style="font-size: 12px; margin-bottom: 4px;">${
+        typeof parking.distance === 'number' ? `${parking.distance}m de distancia` : 'Marca tu ubicación para ver distancia'
+      }</div>
       <div style="font-size: 12px; margin-bottom: 8px;">${parking.availableSpaces} espacios disponibles</div>
     </div>
   `;
@@ -387,28 +389,48 @@ export function LeafletMapView({
     const destination = resolveRoutingDestination(routingTarget, parkings, entrances);
     if (!destination) return;
 
-    routeLineRef.current = L.polyline(
-      [
-        [userLocation.lat, userLocation.lng],
-        [destination.lat, destination.lng],
-      ],
-      {
-        color: routingTarget.kind === 'entrance' ? '#1059b9' : '#1153a6',
+    const map = mapRef.current;
+    const routeColor = routingTarget.kind === 'entrance' ? '#1059b9' : '#1153a6';
+    const abortController = new AbortController();
+
+    const drawRoute = (points: [number, number][]) => {
+      routeLineRef.current?.remove();
+      routeLineRef.current = L.polyline(points, {
+        color: routeColor,
         weight: 5,
-        opacity: 0.85,
+        opacity: 0.9,
         lineCap: 'round',
         lineJoin: 'round',
-        dashArray: '10 8',
-      }
-    ).addTo(mapRef.current);
+      }).addTo(map);
+      map.fitBounds(routeLineRef.current.getBounds(), { padding: [56, 56] });
+    };
 
-    mapRef.current.fitBounds(routeLineRef.current.getBounds(), { padding: [56, 56] });
+    void (async () => {
+      try {
+        const points = await fetchWalkingRoute(userLocation, destination, abortController.signal);
+        if (abortController.signal.aborted) return;
+        drawRoute(points);
+      } catch {
+        if (abortController.signal.aborted) return;
+        drawRoute([
+          [userLocation.lat, userLocation.lng],
+          [destination.lat, destination.lng],
+        ]);
+      }
+    })();
+
+    return () => {
+      abortController.abort();
+      routeLineRef.current?.remove();
+      routeLineRef.current = null;
+    };
   }, [parkings, entrances, routingTarget, userLocation]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
-    const target = userLocation ?? DEFAULT_USER_LOCATION;
-    mapRef.current.flyTo([target.lat, target.lng], 16, {
+    if (!mapRef.current || recenterToken === 0) return;
+    if (!userLocation) return;
+
+    mapRef.current.flyTo([userLocation.lat, userLocation.lng], 16, {
       animate: true,
       duration: 0.7,
     });

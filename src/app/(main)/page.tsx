@@ -7,9 +7,9 @@ import { motion } from 'motion/react';
 import { ParkingCard } from '@/components/parking/ParkingCard';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { parkingLots } from '@/data/parkingData';
+import { hasUserLocation } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
-  DEFAULT_USER_LOCATION,
   loadUserLocation,
   rankParkings,
   type UserCoordinates,
@@ -25,8 +25,8 @@ export default function HomePage() {
   }, []);
 
   const rankedParkings = useMemo(() => {
-    const location = userLocation ?? DEFAULT_USER_LOCATION;
-    return rankParkings(applyDistanceFromLocation(parkingLots, location));
+    if (!hasUserLocation(userLocation)) return parkingLots;
+    return rankParkings(applyDistanceFromLocation(parkingLots, userLocation));
   }, [userLocation]);
 
   const recommendedParking = rankedParkings[0];
@@ -86,11 +86,26 @@ export default function HomePage() {
               <h2 className="font-semibold text-lg">Mejor opción disponible para ti</h2>
             </div>
 
-            <p className="text-sm text-muted-foreground mb-4">
-              Seleccionado por distancia y disponibilidad desde {userLocation ? 'tu ubicación' : 'el punto base'}
-            </p>
-
-            <ParkingCard parking={recommendedParking} isRecommended={true} />
+            {hasUserLocation(userLocation) ? (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Seleccionado por distancia y disponibilidad desde tu ubicación
+                </p>
+                <ParkingCard parking={recommendedParking} isRecommended={true} />
+              </>
+            ) : (
+              <div className="text-center py-2">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Marca tu ubicación en el mapa para ver la mejor opción según tu distancia.
+                </p>
+                <button
+                  onClick={() => router.push('/mapa')}
+                  className="w-full bg-[#1153a6] text-white py-3 rounded-xl font-medium hover:bg-[#0d4080] transition-colors"
+                >
+                  Elegir mi ubicación en el mapa
+                </button>
+              </div>
+            )}
           </motion.div>
 
           <div className="flex flex-col gap-3 mb-6">
@@ -108,14 +123,6 @@ export default function HomePage() {
             >
               <span>Elegir otra opción</span>
               <ChevronRight className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={() => router.push('/chatbot')}
-              className="w-full bg-white dark:bg-card border border-border py-4 px-6 rounded-xl font-medium flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
-            >
-              <span>Hablar con el chatbot</span>
-              <MessageCircle className="w-5 h-5" />
             </button>
           </div>
 
