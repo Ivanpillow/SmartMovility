@@ -7,13 +7,20 @@ import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 import { Entrances } from '@/data/entradasData';
 import { parkingLots } from '@/data/parkingData';
-import { getStatusColor as getEntranceStatusColor, getStatusText } from '@/types/entradas';
+import type { ParkingLot } from '@/types/parking';
+import type { EntranceQCEI } from '@/types/entradas';
+import {
+  getStatusColor as getEntranceStatusColor,
+  getStatusText,
+  type EntranceQCEI,
+} from '@/types/entradas';
 import { getStatusColor } from '@/types/parking';
 import type { MapRoutingTarget } from '@/components/maps/LeafletMapView';
 import { hasUserLocation, promptLocationRequired } from '@/lib/locationPrompt';
 import {
   applyDistanceFromLocation,
   applyDistanceFromLocationToEntrances,
+  calculateDistanceMeters,
   estimateWalkingMinutes,
   loadUserLocation,
   rankParkings,
@@ -45,23 +52,58 @@ function MapContent() {
   const [userLocation, setUserLocation] = useState<UserCoordinates | null>(null);
   const [isPlacingUserPin, setIsPlacingUserPin] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [parkingData, setParkingData] = useState<ParkingLot[]>(parkingLots);
+  const [entranceData, setEntranceData] = useState<EntranceQCEI[]>(Entrances);
 
   useEffect(() => {
     const location = loadUserLocation();
     if (location) {
       setUserLocation(location);
+      return;
     }
+    setUserLocation(null);
+    setIsNavigating(false);
+    setIsPlacingUserPin(true);
+  }, []);
+
+  useEffect(() => {
+    async function loadMapData() {
+      try {
+        const [parkingResponse, entranceResponse] = await Promise.all([
+          fetch('/api/estacionamientos'),
+          fetch('/api/entradas'),
+        ]);
+  
+        if (parkingResponse.ok) {
+          const parkingJson = await parkingResponse.json();
+          if (Array.isArray(parkingJson.data)) {
+            setParkingData(parkingJson.data);
+          }
+        }
+  
+        if (entranceResponse.ok) {
+          const entranceJson = await entranceResponse.json();
+          if (Array.isArray(entranceJson.data)) {
+            setEntranceData(entranceJson.data);
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar datos del mapa:', error);
+      }
+    }
+  
+    loadMapData();
   }, []);
 
   const displayParkings = useMemo(() => {
-    if (!hasUserLocation(userLocation)) return parkingLots;
-    return rankParkings(applyDistanceFromLocation(parkingLots, userLocation));
-  }, [userLocation]);
+    if (!hasUserLocation(userLocation)) return parkingData;
+    return rankParkings(applyDistanceFromLocation(parkingData, userLocation));
+  }, [parkingData, userLocation]);
 
   const entrancesWithDistance = useMemo(() => {
-    if (!hasUserLocation(userLocation)) return Entrances;
-    return applyDistanceFromLocationToEntrances(Entrances, userLocation);
-  }, [userLocation]);
+    if (!hasUserLocation(userLocation)) return entranceData;
+    return applyDistanceFromLocationToEntrances(entranceData, userLocation);
+  }, [entranceData, userLocation]);
 
   const selectedParking = useMemo(
     () => displayParkings.find((p) => p.id === selectedParkingId),
@@ -139,11 +181,23 @@ function MapContent() {
     ? 'bottom-[calc(250px+env(safe-area-inset-bottom))]'
     : 'bottom-[calc(166px+env(safe-area-inset-bottom))]';
 
-  const formatDistance = (distance?: number) =>
-    typeof distance === 'number' ? `${distance}m de distancia` : 'Marca tu ubicación para ver distancia';
+  const locationReady = hasUserLocation(userLocation);
 
-  const formatWalkingTime = (distance?: number) =>
-    typeof distance === 'number'
+  const selectedParkingDistance = useMemo(() => {
+    if (!locationReady || !selectedParking) return null;
+    return calculateDistanceMeters(userLocation, selectedParking.coordinates);
+  }, [locationReady, selectedParking, userLocation]);
+
+  const selectedEntranceDistance = useMemo(() => {
+    if (!locationReady || !selectedEntrance) return null;
+    return calculateDistanceMeters(userLocation, selectedEntrance.coordinates);
+  }, [locationReady, selectedEntrance, userLocation]);
+
+  const formatDistance = (distance: number | null) =>
+    distance !== null ? `${distance}m de distancia` : 'Marca tu ubicación para ver distancia';
+
+  const formatWalkingTime = (distance: number | null) =>
+    distance !== null
       ? `~${estimateWalkingMinutes(distance)} min caminando`
       : 'Tiempo estimado al marcar ubicación';
 
@@ -159,6 +213,7 @@ function MapContent() {
           userLocation={userLocation}
           isPlacingUserPin={isPlacingUserPin}
           routingTarget={routingTarget}
+          locationConfirmed={locationReady}
           onSelectParking={handleSelectParking}
           onSelectEntrance={handleSelectEntrance}
           onUserLocationSet={handleUserLocationSet}
@@ -196,11 +251,12 @@ function MapContent() {
         </div>
       </div>
 
-      {!hasUserLocation(userLocation) && (
+      {!locationReady && (
         <div className="relative z-10 mx-6 mt-3">
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-            Toca el botón de ubicación (arriba del recentrado) y marca tu punto en el mapa para
-            usar distancias y navegación.
+            {isPlacingUserPin
+              ? 'Toca el mapa en el punto donde estás. Sin ubicación no hay distancias ni rutas.'
+              : 'Activa el botón de ubicación (arriba del recentrado) y marca tu punto en el mapa.'}
           </p>
         </div>
       )}
@@ -245,9 +301,11 @@ function MapContent() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="font-semibold text-base mb-1">{selectedParking.name}</h3>
-                <p className="text-sm text-muted-foreground">{formatDistance(selectedParking.distance)}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatDistance(selectedParkingDistance)}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {formatWalkingTime(selectedParking.distance)}
+                  {formatWalkingTime(selectedParkingDistance)}
                 </p>
               </div>
               <div className="text-right">
@@ -297,10 +355,10 @@ function MapContent() {
                 </p>
                 <h3 className="font-semibold text-base mb-1">{selectedEntrance.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {formatDistance(selectedEntrance.distance)}
+                  {formatDistance(selectedEntranceDistance)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {formatWalkingTime(selectedEntrance.distance)}
+                  {formatWalkingTime(selectedEntranceDistance)}
                 </p>
               </div>
               <div className="text-right">

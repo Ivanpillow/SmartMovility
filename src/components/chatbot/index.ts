@@ -1,1 +1,1 @@
-export { ChatPanel } from './ChatCrisp';
+export { CrispChat } from './ChatCrisp';

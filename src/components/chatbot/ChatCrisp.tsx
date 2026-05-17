@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Crisp } from "crisp-sdk-web";
+import { ChatboxColors, ChatboxPosition, Crisp } from "crisp-sdk-web";
 
 let crispConfigured = false;
 
@@ -18,9 +18,9 @@ export function CrispChat() {
 
     Crisp.configure(websiteId);
 
-    Crisp.setPosition("left");
+    Crisp.setPosition(ChatboxPosition.Left);
 
-    Crisp.setColorTheme("blue");
+    Crisp.setColorTheme(ChatboxColors.Blue);
 
     Crisp.chat.show();
 

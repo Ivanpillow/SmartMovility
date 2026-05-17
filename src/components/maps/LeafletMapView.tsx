@@ -21,6 +21,7 @@ type LeafletMapViewProps = {
   userLocation?: UserCoordinates | null;
   isPlacingUserPin?: boolean;
   routingTarget?: MapRoutingTarget | null;
+  locationConfirmed?: boolean;
   onSelectParking?: (parkingId: string) => void;
   onSelectEntrance?: (entranceId: string) => void;
   onUserLocationSet?: (location: UserCoordinates) => void;
@@ -126,7 +127,7 @@ function createUserLocationIcon() {
   });
 }
 
-function parkingPopupHtml(parking: ParkingLot): string {
+function parkingPopupHtml(parking: ParkingLot, locationConfirmed: boolean): string {
   return `
     <div style="font-family: Inter, sans-serif; min-width: 180px;">
       <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">${parking.name}</div>
@@ -134,17 +135,18 @@ function parkingPopupHtml(parking: ParkingLot): string {
         ${parking.status === 'available' ? 'Alta disponibilidad' : parking.status === 'medium' ? 'Disponibilidad media' : 'Saturado'}
       </div>
       <div style="font-size: 12px; margin-bottom: 4px;">${
-        typeof parking.distance === 'number' ? `${parking.distance}m de distancia` : 'Marca tu ubicación para ver distancia'
+        locationConfirmed ? `${parking.distance}m de distancia` : 'Marca tu ubicación para ver distancia'
       }</div>
       <div style="font-size: 12px; margin-bottom: 8px;">${parking.availableSpaces} espacios disponibles</div>
     </div>
   `;
 }
 
-function entrancePopupHtml(entrance: EntranceQCEI): string {
+function entrancePopupHtml(entrance: EntranceQCEI, locationConfirmed: boolean): string {
   const color = getEntranceStatusColor(entrance.status);
-  const distanceLabel =
-    typeof entrance.distance === 'number' ? `${entrance.distance}m de distancia` : 'Entrada al campus';
+  const distanceLabel = locationConfirmed
+    ? `${entrance.distance ?? 0}m de distancia`
+    : 'Marca tu ubicación para ver distancia';
 
   return `
     <div style="font-family: Inter, sans-serif; min-width: 180px;">
@@ -180,6 +182,7 @@ export function LeafletMapView({
   userLocation = null,
   isPlacingUserPin = false,
   routingTarget = null,
+  locationConfirmed = false,
   onSelectParking,
   onSelectEntrance,
   onUserLocationSet,
@@ -262,7 +265,7 @@ export function LeafletMapView({
 
       if (existing) {
         existing.setIcon(createParkingMarkerIcon(parking.status, isSelected));
-        existing.setPopupContent(parkingPopupHtml(parking));
+        existing.setPopupContent(parkingPopupHtml(parking, locationConfirmed));
         existing.setLatLng([parking.coordinates.lat, parking.coordinates.lng]);
         return;
       }
@@ -271,7 +274,7 @@ export function LeafletMapView({
         icon: createParkingMarkerIcon(parking.status, isSelected),
       })
         .addTo(map)
-        .bindPopup(parkingPopupHtml(parking), { maxWidth: 220 });
+        .bindPopup(parkingPopupHtml(parking, locationConfirmed), { maxWidth: 220 });
 
       marker.on('click', () => {
         onSelectParking?.(parking.id);
@@ -279,7 +282,7 @@ export function LeafletMapView({
 
       parkingMarkersRef.current.set(parking.id, marker);
     });
-  }, [parkings, selectedParkingId, onSelectParking]);
+  }, [parkings, selectedParkingId, locationConfirmed, onSelectParking]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -300,7 +303,7 @@ export function LeafletMapView({
 
       if (existing) {
         existing.setIcon(createEntranceMarkerIcon(entrance.status, isSelected));
-        existing.setPopupContent(entrancePopupHtml(entrance));
+        existing.setPopupContent(entrancePopupHtml(entrance, locationConfirmed));
         existing.setLatLng([entrance.coordinates.lat, entrance.coordinates.lng]);
         return;
       }
@@ -310,7 +313,7 @@ export function LeafletMapView({
         zIndexOffset: 500,
       })
         .addTo(map)
-        .bindPopup(entrancePopupHtml(entrance), { maxWidth: 220 });
+        .bindPopup(entrancePopupHtml(entrance, locationConfirmed), { maxWidth: 220 });
 
       marker.on('click', () => {
         onSelectEntrance?.(entrance.id);
@@ -318,7 +321,7 @@ export function LeafletMapView({
 
       entranceMarkersRef.current.set(entrance.id, marker);
     });
-  }, [entrances, selectedEntranceId, onSelectEntrance]);
+  }, [entrances, selectedEntranceId, locationConfirmed, onSelectEntrance]);
 
   useEffect(() => {
     if (!mapRef.current) return;

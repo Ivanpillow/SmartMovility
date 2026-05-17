@@ -1,5 +1,4 @@
 import { ParkingLot } from '@/types/parking';
-import { applyDistanceFromLocation, DEFAULT_USER_LOCATION, rankParkings } from '@/lib/parkingRouting';
 
 export const parkingLots: ParkingLot[] = [
   {
@@ -75,8 +74,4 @@ export const parkingLots: ParkingLot[] = [
   }
 ];
 
-export const getRecommendedParking = (): ParkingLot => {
-  const withDistance = applyDistanceFromLocation(parkingLots, DEFAULT_USER_LOCATION);
-  const sorted = rankParkings(withDistance);
-  return sorted[0];
-};
+export const getRecommendedParking = (): ParkingLot => parkingLots[0];
