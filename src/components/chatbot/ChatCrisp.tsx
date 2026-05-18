@@ -18,6 +18,9 @@ export function CrispChat() {
 
     Crisp.configure(websiteId);
 
+    // Reset the chat session on each full page load (refresh).
+    Crisp.session.reset();
+
     Crisp.setPosition(ChatboxPosition.Left);
 
     Crisp.setColorTheme(ChatboxColors.Blue);
